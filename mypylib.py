@@ -514,13 +514,28 @@ class MyPyClass:
 		return Dict(data)
 	#end define
 
-	def write_db(self, data):
+	def write_db(self, data: str):
 		db_path = self.buffer.db_path
 		text = json.dumps(data, indent=4)
 		self.lock_file(db_path)
-		self.write_file(db_path, text)
-		self.unlock_file(db_path)
-	#end define
+		try:
+			self._write_file_atomic(db_path, text)
+		finally:
+			self.unlock_file(db_path)
+
+	def _write_file_atomic(self, path: str, text=""):
+		tmp_path = f"{path}.tmp.{os.getpid()}.{threading.get_ident()}"
+		try:
+			with open(tmp_path, 'wt') as file:
+				file.write(text)
+				file.flush()
+			os.replace(tmp_path, path)
+		finally:
+			if os.path.isfile(tmp_path):
+				try:
+					os.remove(tmp_path)
+				except OSError:
+					pass
 
 	def lock_file(self, path):
 		pid_path = path + ".lock"
